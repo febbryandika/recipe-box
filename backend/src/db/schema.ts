@@ -54,6 +54,8 @@ export const verification = pgTable('verification', {
 
 // ── Your app tables go below ──────────────────────────────────────────────────
 
+export type Ingredient = { amount: string; unit: string; name: string }
+
 export const recipes = pgTable('recipes', {
   id:              text('id').primaryKey().$defaultFn(() => createId()),
   userId:          text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
@@ -62,8 +64,8 @@ export const recipes = pgTable('recipes', {
   coverImageUrl:   text('cover_image_url'),
   cookTimeMinutes: integer('cook_time_minutes'),
   servings:        integer('servings'),
-  ingredientsJson: jsonb('ingredients_json').notNull().default(sql`'[]'::jsonb`),
-  stepsJson:       jsonb('steps_json').notNull().default(sql`'[]'::jsonb`),
+  ingredientsJson: jsonb('ingredients_json').$type<Ingredient[]>().notNull().default(sql`'[]'::jsonb`),
+  stepsJson:       jsonb('steps_json').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   tags:            text('tags').array().notNull().default(sql`'{}'::text[]`),
   isPublic:        boolean('is_public').notNull().default(false),
   publicSlug:      text('public_slug').unique(),
