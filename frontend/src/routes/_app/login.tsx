@@ -1,8 +1,14 @@
-import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { authClient } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/_app/login')({
+  beforeLoad: async () => {
+    const { data } = await authClient.getSession()
+    if (data) {
+      throw redirect({ to: '/' })
+    }
+  },
   component: LoginPage,
 })
 
@@ -21,11 +27,16 @@ function LoginPage() {
     setLoading(true)
 
     try {
-      if (isSignUp) {
-        await authClient.signUp.email({ email, password, name })
-      } else {
-        await authClient.signIn.email({ email, password })
+      const { error: authError } = isSignUp
+        ? await authClient.signUp.email({ email, password, name })
+        : await authClient.signIn.email({ email, password })
+
+      if (authError) {
+        setError(authError.message ?? 'Authentication failed')
+        return
       }
+
+      await router.invalidate()
       router.navigate({ to: '/' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
