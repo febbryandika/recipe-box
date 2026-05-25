@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { auth } from './lib/auth'
-import { requireAuth } from './lib/middleware'
+import { requireAuth, type AppVariables } from './lib/middleware'
 
 const app = new Hono()
 
@@ -27,7 +27,7 @@ app.on(['GET', 'POST'], '/api/auth/**', (c) => auth.handler(c.req.raw))
 app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
 // Protected routes example
-const api = new Hono()
+const api = new Hono<{ Variables: AppVariables }>()
 api.use('*', requireAuth)
 
 api.get('/me', (c) => {
