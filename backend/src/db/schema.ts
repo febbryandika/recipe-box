@@ -1,4 +1,6 @@
-import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, boolean, integer, jsonb, index } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
 
 // ── better-auth required tables ──────────────────────────────────────────────
 // Do NOT rename these tables or columns — better-auth expects this exact shape.
@@ -51,12 +53,23 @@ export const verification = pgTable('verification', {
 })
 
 // ── Your app tables go below ──────────────────────────────────────────────────
-// Example:
-// import { createId } from '@paralleldrive/cuid2'
-//
-// export const posts = pgTable('posts', {
-//   id:        text('id').primaryKey().$defaultFn(() => createId()),
-//   userId:    text('user_id').notNull().references(() => user.id),
-//   title:     text('title').notNull(),
-//   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-// })
+
+export const recipes = pgTable('recipes', {
+  id:              text('id').primaryKey().$defaultFn(() => createId()),
+  userId:          text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  title:           text('title').notNull(),
+  description:     text('description'),
+  coverImageUrl:   text('cover_image_url'),
+  cookTimeMinutes: integer('cook_time_minutes'),
+  servings:        integer('servings'),
+  ingredientsJson: jsonb('ingredients_json').notNull().default(sql`'[]'::jsonb`),
+  stepsJson:       jsonb('steps_json').notNull().default(sql`'[]'::jsonb`),
+  tags:            text('tags').array().notNull().default(sql`'{}'::text[]`),
+  isPublic:        boolean('is_public').notNull().default(false),
+  publicSlug:      text('public_slug').unique(),
+  createdAt:       timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt:       timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('idx_recipe_user').on(t.userId),
+  index('idx_recipe_slug').on(t.publicSlug),
+])
