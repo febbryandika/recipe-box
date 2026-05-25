@@ -5,11 +5,13 @@ import { HTTPException } from 'hono/http-exception'
 import { env } from './env'
 import { requireAuth, type AppVariables } from './lib/middleware'
 import { authRoute } from './routes/auth'
+import { recipesRoute } from './routes/recipes'
 
 // Protected routes — chained registration so RPC types flow through
 const api = new Hono<{ Variables: AppVariables }>()
   .use('*', requireAuth)
   .get('/me', (c) => c.json({ user: c.get('user') }))
+  .route('/recipes', recipesRoute)
 
 // Chain everything on the same builder so the RPC type carries every route.
 // Splitting via `app.use(...)` / `app.route(...)` statements drops the chain
