@@ -1,0 +1,8 @@
+node_modules
+dist
+build
+.vite
+.tanstack
+bun.lock
+frontend/src/routeTree.gen.ts
+backend/drizzle
