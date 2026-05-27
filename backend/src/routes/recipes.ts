@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { and, arrayContains, desc, eq, ilike } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import { db } from '../db'
 import { recipes } from '../db/schema'
 import type { AppVariables } from '../lib/middleware'
@@ -129,4 +130,27 @@ export const recipesRoute = new Hono<{ Variables: AppVariables }>()
 
     if (!deleted) return c.json({ error: 'Recipe not found' }, 404)
     return c.body(null, 204)
+  })
+  .post('/:id/share', zValidator('param', idParamSchema, onInvalid), async (c) => {
+    const userId = c.get('user').id
+    const { id } = c.req.valid('param')
+
+    const [existing] = await db
+      .select({ isPublic: recipes.isPublic, publicSlug: recipes.publicSlug })
+      .from(recipes)
+      .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
+      .limit(1)
+
+    if (!existing) return c.json({ error: 'Recipe not found' }, 404)
+
+    const nextIsPublic = !existing.isPublic
+    const slug = existing.publicSlug ?? nanoid(12)
+
+    const [updated] = await db
+      .update(recipes)
+      .set({ isPublic: nextIsPublic, publicSlug: slug, updatedAt: new Date() })
+      .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
+      .returning({ isPublic: recipes.isPublic, publicSlug: recipes.publicSlug })
+
+    return c.json(updated)
   })
