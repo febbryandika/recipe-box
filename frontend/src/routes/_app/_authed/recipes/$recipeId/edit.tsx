@@ -1,38 +1,18 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
-import type { InferRequestType, InferResponseType } from 'hono/client'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { InferRequestType } from 'hono/client'
 import { client } from '@/lib/client'
+import {
+  recipeQueryOptions,
+  RecipeNotFoundError,
+  type Recipe,
+} from '@/lib/recipe-queries'
 
-class RecipeNotFoundError extends Error {
-  constructor() {
-    super('Recipe not found')
-    this.name = 'RecipeNotFoundError'
-  }
-}
-
-type Recipe = InferResponseType<(typeof client.api.recipes)[':id']['$get'], 200>
 type UpdateRecipePayload = InferRequestType<
   (typeof client.api.recipes)[':id']['$put']
 >['json']
 type Ingredient = { amount: string; unit: string; name: string }
-
-function recipeQueryOptions(id: string) {
-  return queryOptions({
-    queryKey: ['recipe', id],
-    queryFn: async (): Promise<Recipe> => {
-      const res = await client.api.recipes[':id'].$get({ param: { id } })
-      if (res.status === 404) throw new RecipeNotFoundError()
-      if (!res.ok) throw new Error('Failed to load recipe')
-      return (await res.json()) as Recipe
-    },
-  })
-}
 
 export const Route = createFileRoute('/_app/_authed/recipes/$recipeId/edit')({
   loader: ({ context, params }) =>
