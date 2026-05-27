@@ -1,24 +1,87 @@
+import { useEffect, useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query'
+import { z } from 'zod'
 import { client } from '@/lib/client'
 import { RecipeCard } from '@/components/RecipeCard'
+import { RecipeFilters } from '@/components/RecipeFilters'
 import { RecipeSkeleton } from '@/components/RecipeSkeleton'
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback'
 
-const recipesQueryOptions = queryOptions({
-  queryKey: ['recipes'],
-  queryFn: async () => {
-    const res = await client.api.recipes.$get()
-    if (!res.ok) throw new Error('Failed to load recipes')
-    return res.json()
-  },
+const searchSchema = z.object({
+  search: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .catch(undefined),
+  tag: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .catch(undefined),
 })
 
+type RecipeFiltersValue = z.infer<typeof searchSchema>
+
+function recipesQueryOptions({ search, tag }: RecipeFiltersValue) {
+  return queryOptions({
+    queryKey: ['recipes', { search: search ?? null, tag: tag ?? null }],
+    queryFn: async () => {
+      const res = await client.api.recipes.$get({ query: { search, tag } })
+      if (!res.ok) throw new Error('Failed to load recipes')
+      return res.json()
+    },
+    placeholderData: keepPreviousData,
+  })
+}
+
 export const Route = createFileRoute('/_app/_authed/')({
+  validateSearch: searchSchema,
+  loaderDeps: ({ search }) => search,
+  loader: ({ context, deps }) =>
+    context.queryClient.ensureQueryData(recipesQueryOptions(deps)),
   component: RecipeGridPage,
 })
 
 function RecipeGridPage() {
-  const query = useQuery(recipesQueryOptions)
+  const { search, tag } = Route.useSearch()
+  const navigate = Route.useNavigate()
+
+  const [inputValue, setInputValue] = useState(search ?? '')
+
+  const pushSearch = useDebouncedCallback((value: string) => {
+    const next = value.trim() || undefined
+    navigate({ search: (prev) => ({ ...prev, search: next }), replace: true })
+  }, 300)
+
+  const handleSearchChange = (value: string) => {
+    setInputValue(value)
+    pushSearch(value)
+  }
+
+  // Sync URL → input when changed externally (back/forward, Clear filters).
+  // Cancel pending pushes so stale typing doesn't undo the external change.
+  useEffect(() => {
+    pushSearch.cancel()
+    setInputValue((current) => ((search ?? '') === current.trim() ? current : (search ?? '')))
+  }, [search, pushSearch])
+
+  const query = useQuery(recipesQueryOptions({ search, tag }))
+  const hasFilters = Boolean(search || tag)
+
+  const clearTag = () =>
+    navigate({ search: (prev) => ({ ...prev, tag: undefined }), replace: true })
+
+  const clearAllFilters = () => {
+    pushSearch.cancel()
+    setInputValue('')
+    navigate({ search: {}, replace: true })
+  }
+
+  const setTag = (next: string) =>
+    navigate({ search: (prev) => ({ ...prev, tag: next }), replace: true })
 
   return (
     <div className="flex flex-col gap-6">
@@ -32,6 +95,13 @@ function RecipeGridPage() {
         </Link>
       </header>
 
+      <RecipeFilters
+        value={inputValue}
+        onSearchChange={handleSearchChange}
+        activeTag={tag}
+        onClearTag={clearTag}
+      />
+
       {query.isPending ? (
         <RecipeGrid>
           {Array.from({ length: 6 }).map((_, i) => (
@@ -44,11 +114,15 @@ function RecipeGridPage() {
           onRetry={() => query.refetch()}
         />
       ) : query.data.length === 0 ? (
-        <EmptyState />
+        hasFilters ? (
+          <NoMatchesState onClearFilters={clearAllFilters} />
+        ) : (
+          <EmptyState />
+        )
       ) : (
         <RecipeGrid>
           {query.data.map((recipe) => (
-            <RecipeCard key={recipe.id} recipe={recipe} />
+            <RecipeCard key={recipe.id} recipe={recipe} onTagClick={setTag} />
           ))}
         </RecipeGrid>
       )}
@@ -77,6 +151,24 @@ function EmptyState() {
       >
         Create your first recipe
       </Link>
+    </div>
+  )
+}
+
+function NoMatchesState({ onClearFilters }: { onClearFilters: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
+      <p className="text-lg font-medium text-foreground">No recipes match your filters</p>
+      <p className="text-sm text-muted-foreground">
+        Try a different search term or remove the tag filter.
+      </p>
+      <button
+        type="button"
+        onClick={onClearFilters}
+        className="mt-2 inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium transition hover:bg-muted"
+      >
+        Clear filters
+      </button>
     </div>
   )
 }
