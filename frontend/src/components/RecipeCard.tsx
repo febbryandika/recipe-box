@@ -6,7 +6,12 @@ type Recipe = InferResponseType<typeof client.api.recipes.$get>[number]
 
 const MAX_VISIBLE_TAGS = 3
 
-export function RecipeCard({ recipe }: { recipe: Recipe }) {
+type Props = {
+  recipe: Recipe
+  onTagClick?: (tag: string) => void
+}
+
+export function RecipeCard({ recipe, onTagClick }: Props) {
   const visibleTags = recipe.tags.slice(0, MAX_VISIBLE_TAGS)
   const hiddenCount = recipe.tags.length - visibleTags.length
 
@@ -48,14 +53,29 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
               {recipe.cookTimeMinutes} min
             </span>
           ) : null}
-          {visibleTags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
-            >
-              {tag}
-            </span>
-          ))}
+          {visibleTags.map((tag) =>
+            onTagClick ? (
+              <button
+                key={tag}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onTagClick(tag)
+                }}
+                className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+              >
+                {tag}
+              </button>
+            ) : (
+              <span
+                key={tag}
+                className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+              >
+                {tag}
+              </span>
+            ),
+          )}
           {hiddenCount > 0 ? (
             <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
               +{hiddenCount}
