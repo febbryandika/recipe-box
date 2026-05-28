@@ -3,9 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { client } from '@/lib/client'
 import { recipeInputSchema, type Ingredient } from '@/lib/recipe-schema'
+import { uploadCover } from '@/lib/recipe-uploads'
 import { TagInput } from '@/components/TagInput'
 import { IngredientBuilder } from '@/components/IngredientBuilder'
 import { StepBuilder } from '@/components/StepBuilder'
+import { CoverImageInput } from '@/components/CoverImageInput'
 
 export const Route = createFileRoute('/_app/_authed/recipes/new')({
   component: NewRecipePage,
@@ -40,6 +42,9 @@ function NewRecipePage() {
   const [steps, setSteps] = useState<string[]>([''])
   const [errors, setErrors] = useState<FieldErrors>({})
   const [serverError, setServerError] = useState<string | null>(null)
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  const [coverError, setCoverError] = useState<string | null>(null)
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
 
   function clearError(key: keyof FieldErrors) {
     setErrors((prev) => (prev[key] == null ? prev : { ...prev, [key]: undefined }))
@@ -62,7 +67,27 @@ function NewRecipePage() {
       }
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: async (created) => {
+      if (coverFile) {
+        setIsUploadingCover(true)
+        try {
+          await uploadCover(created.id, coverFile)
+        } catch (err) {
+          setIsUploadingCover(false)
+          setServerError(
+            `Recipe saved, but cover image upload failed: ${
+              err instanceof Error ? err.message : 'unknown error'
+            }. You can retry from the edit page.`,
+          )
+          queryClient.invalidateQueries({ queryKey: ['recipes'] })
+          router.navigate({
+            to: '/recipes/$recipeId/edit',
+            params: { recipeId: created.id },
+          })
+          return
+        }
+        setIsUploadingCover(false)
+      }
       queryClient.invalidateQueries({ queryKey: ['recipes'] })
       router.navigate({ to: '/' })
     },
@@ -230,6 +255,15 @@ function NewRecipePage() {
             <label className="text-sm font-medium">Tags</label>
             <TagInput value={tags} onChange={setTags} placeholder="dessert, quick, vegetarian…" />
           </div>
+
+          <CoverImageInput
+            existingUrl={null}
+            file={coverFile}
+            onFileChange={setCoverFile}
+            error={coverError}
+            onError={setCoverError}
+            disabled={mutation.isPending || isUploadingCover}
+          />
         </section>
 
         <section className="space-y-4">
@@ -265,10 +299,14 @@ function NewRecipePage() {
           </Link>
           <button
             type="submit"
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || isUploadingCover}
             className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
           >
-            {mutation.isPending ? 'Creating…' : 'Create recipe'}
+            {isUploadingCover
+              ? 'Uploading image…'
+              : mutation.isPending
+                ? 'Creating…'
+                : 'Create recipe'}
           </button>
         </div>
       </form>

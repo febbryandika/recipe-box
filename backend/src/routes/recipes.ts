@@ -5,7 +5,16 @@ import { and, arrayContains, desc, eq, ilike } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { db } from '../db'
 import { recipes } from '../db/schema'
+import { deleteCoverByUrl, uploadCover } from '../lib/r2'
 import type { AppVariables } from '../lib/middleware'
+
+const MAX_COVER_BYTES = 5 * 1024 * 1024
+const ALLOWED_COVER_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+const EXT_BY_MIME: Record<(typeof ALLOWED_COVER_TYPES)[number], string> = {
+  'image/jpeg': 'jpg',
+  'image/png' : 'png',
+  'image/webp': 'webp',
+}
 
 const ingredientSchema = z.object({
   amount : z.string().min(1),
@@ -126,9 +135,14 @@ export const recipesRoute = new Hono<{ Variables: AppVariables }>()
     const [deleted] = await db
       .delete(recipes)
       .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
-      .returning({ id: recipes.id })
+      .returning({ id: recipes.id, coverImageUrl: recipes.coverImageUrl })
 
     if (!deleted) return c.json({ error: 'Recipe not found' }, 404)
+
+    if (deleted.coverImageUrl) {
+      await deleteCoverByUrl(deleted.coverImageUrl)
+    }
+
     return c.body(null, 204)
   })
   .post('/:id/share', zValidator('param', idParamSchema, onInvalid), async (c) => {
@@ -151,6 +165,64 @@ export const recipesRoute = new Hono<{ Variables: AppVariables }>()
       .set({ isPublic: nextIsPublic, publicSlug: slug, updatedAt: new Date() })
       .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
       .returning({ isPublic: recipes.isPublic, publicSlug: recipes.publicSlug })
+
+    return c.json(updated)
+  })
+  .post('/:id/cover', zValidator('param', idParamSchema, onInvalid), async (c) => {
+    const userId = c.get('user').id
+    const { id } = c.req.valid('param')
+
+    const [existing] = await db
+      .select({ id: recipes.id, coverImageUrl: recipes.coverImageUrl })
+      .from(recipes)
+      .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
+      .limit(1)
+
+    if (!existing) return c.json({ error: 'Recipe not found' }, 404)
+
+    let body: Record<string, unknown>
+    try {
+      body = await c.req.parseBody()
+    } catch {
+      return c.json({ error: 'Invalid multipart body' }, 400)
+    }
+
+    const file = body['file']
+    if (!(file instanceof File)) {
+      return c.json({ error: 'No file provided' }, 400)
+    }
+
+    if (!(ALLOWED_COVER_TYPES as readonly string[]).includes(file.type)) {
+      return c.json(
+        { error: 'Unsupported image type', allowed: ALLOWED_COVER_TYPES },
+        400,
+      )
+    }
+
+    if (file.size > MAX_COVER_BYTES) {
+      return c.json({ error: 'Image exceeds 5MB limit' }, 413)
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const ext = EXT_BY_MIME[file.type as (typeof ALLOWED_COVER_TYPES)[number]]
+
+    if (existing.coverImageUrl) {
+      await deleteCoverByUrl(existing.coverImageUrl)
+    }
+
+    let uploaded: { url: string }
+    try {
+      uploaded = await uploadCover(buffer, file.type, ext)
+    } catch (err) {
+      console.error('[recipes/cover] upload failed', err)
+      return c.json({ error: 'Upload failed' }, 500)
+    }
+
+    const [updated] = await db
+      .update(recipes)
+      .set({ coverImageUrl: uploaded.url, updatedAt: new Date() })
+      .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
+      .returning()
 
     return c.json(updated)
   })
