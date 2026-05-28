@@ -19,7 +19,7 @@ export const auth = betterAuth({
   },
   trustedOrigins: [env.FRONTEND_URL],
   rateLimit: {
-    enabled: true,
+    enabled: process.env.E2E !== 'true',
     storage: 'memory',
     window: 60,
     max: 100,
