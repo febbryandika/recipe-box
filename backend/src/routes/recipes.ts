@@ -2,11 +2,16 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { and, arrayContains, desc, eq, ilike } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { db } from '../db'
 import { recipes } from '../db/schema'
 import { deleteCoverByUrl, uploadCover } from '../lib/r2'
 import { logger, serializeError } from '../lib/logger'
+import { resolveSlug } from '../lib/slug'
+import {
+  idParamSchema,
+  listQuerySchema,
+  recipeBodySchema,
+} from '../lib/recipe-validation'
 import type { AppVariables } from '../lib/middleware'
 
 const MAX_COVER_BYTES = 5 * 1024 * 1024
@@ -16,32 +21,6 @@ const EXT_BY_MIME: Record<(typeof ALLOWED_COVER_TYPES)[number], string> = {
   'image/png' : 'png',
   'image/webp': 'webp',
 }
-
-const ingredientSchema = z.object({
-  amount : z.string().min(1),
-  unit   : z.string().min(1),
-  name   : z.string().min(1),
-})
-
-const recipeBodySchema = z.object({
-  title           : z.string().min(1),
-  description     : z.string().nullable().optional(),
-  coverImageUrl   : z.string().url().nullable().optional(),
-  cookTimeMinutes : z.number().int().positive().nullable().optional(),
-  servings        : z.number().int().positive().nullable().optional(),
-  ingredients     : z.array(ingredientSchema),
-  steps           : z.array(z.string()),
-  tags            : z.array(z.string()),
-})
-
-const listQuerySchema = z.object({
-  search : z.string().min(1).optional(),
-  tag    : z.string().min(1).optional(),
-})
-
-const idParamSchema = z.object({
-  id : z.string().min(1),
-})
 
 const onInvalid = (result: { success: boolean; error?: z.ZodError }, c: any) => {
   if (!result.success) {
@@ -159,7 +138,7 @@ export const recipesRoute = new Hono<{ Variables: AppVariables }>()
     if (!existing) return c.json({ error: 'Recipe not found' }, 404)
 
     const nextIsPublic = !existing.isPublic
-    const slug = existing.publicSlug ?? nanoid(12)
+    const slug = resolveSlug(existing.publicSlug)
 
     const [updated] = await db
       .update(recipes)
