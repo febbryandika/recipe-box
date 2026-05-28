@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { authClient } from '@/lib/auth-client'
+import { Button } from '@/components/ui/Button'
 
 export const Route = createFileRoute('/_app/login')({
   beforeLoad: async () => {
@@ -106,13 +107,9 @@ function LoginPage() {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : isSignUp ? 'Create account' : 'Sign in'}
-          </button>
+          <Button type="submit" loading={loading} className="w-full">
+            {loading ? 'Loading…' : isSignUp ? 'Create account' : 'Sign in'}
+          </Button>
         </form>
       </div>
     </div>

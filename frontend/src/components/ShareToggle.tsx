@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/client'
+import { useToast } from '@/components/ui/Toast'
+import { Button } from '@/components/ui/Button'
 import type { Recipe } from '@/lib/recipe-queries'
 
 type ShareToggleProps = {
@@ -11,6 +13,7 @@ type ShareResponse = { isPublic: boolean; publicSlug: string }
 
 export function ShareToggle({ recipe }: ShareToggleProps) {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const queryKey = ['recipe', recipe.id] as const
 
   const mutation = useMutation({
@@ -37,10 +40,15 @@ export function ShareToggle({ recipe }: ShareToggleProps) {
       }
       return { previous }
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData<Recipe>(queryKey, context.previous)
       }
+      toast({
+        title: 'Failed to update sharing',
+        description: err instanceof Error ? err.message : 'Please try again.',
+        action: { label: 'Retry', onClick: () => mutation.mutate() },
+      })
     },
     onSuccess: (data) => {
       const current = queryClient.getQueryData<Recipe>(queryKey)
@@ -97,17 +105,6 @@ export function ShareToggle({ recipe }: ShareToggleProps) {
       </div>
 
       {publicUrl ? <CopyableUrl url={publicUrl} /> : null}
-
-      {mutation.isError ? (
-        <div
-          role="alert"
-          className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-        >
-          {mutation.error instanceof Error
-            ? mutation.error.message
-            : 'Failed to update sharing'}
-        </div>
-      ) : null}
     </section>
   )
 }
@@ -134,13 +131,13 @@ function CopyableUrl({ url }: { url: string }) {
         aria-label="Public recipe URL"
         className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
       />
-      <button
-        type="button"
+      <Button
+        variant="outline"
         onClick={handleCopy}
-        className="inline-flex shrink-0 items-center rounded-md border px-3 py-2 text-sm font-medium transition hover:bg-muted"
+        className="shrink-0"
       >
         {copied ? 'Copied' : 'Copy'}
-      </button>
+      </Button>
     </div>
   )
 }
