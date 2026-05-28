@@ -19,7 +19,7 @@ const api = new Hono<{ Variables: AppVariables }>()
 // Chain everything on the same builder so the RPC type carries every route.
 // Splitting via `app.use(...)` / `app.route(...)` statements drops the chain
 // generics and AppType collapses to the empty base.
-const app = new Hono<{ Variables: AppVariables }>()
+export const app = new Hono<{ Variables: AppVariables }>()
   .use('*', requestId())
   .use('*', requestLogger)
   .use(
