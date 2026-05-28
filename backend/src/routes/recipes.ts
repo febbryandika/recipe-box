@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid'
 import { db } from '../db'
 import { recipes } from '../db/schema'
 import { deleteCoverByUrl, uploadCover } from '../lib/r2'
+import { logger, serializeError } from '../lib/logger'
 import type { AppVariables } from '../lib/middleware'
 
 const MAX_COVER_BYTES = 5 * 1024 * 1024
@@ -214,7 +215,12 @@ export const recipesRoute = new Hono<{ Variables: AppVariables }>()
     try {
       uploaded = await uploadCover(buffer, file.type, ext)
     } catch (err) {
-      console.error('[recipes/cover] upload failed', err)
+      logger.error('cover upload failed', {
+        requestId : c.get('requestId'),
+        recipeId  : id,
+        userId,
+        err       : serializeError(err),
+      })
       return c.json({ error: 'Upload failed' }, 500)
     }
 

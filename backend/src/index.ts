@@ -1,9 +1,10 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { logger } from 'hono/logger'
+import { requestId } from 'hono/request-id'
 import { HTTPException } from 'hono/http-exception'
 import { env } from './env'
-import { requireAuth, type AppVariables } from './lib/middleware'
+import { logger, serializeError } from './lib/logger'
+import { requestLogger, requireAuth, type AppVariables } from './lib/middleware'
 import { authRoute } from './routes/auth'
 import { publicRoute } from './routes/public'
 import { publicCoversRoute } from './routes/public-covers'
@@ -19,7 +20,8 @@ const api = new Hono<{ Variables: AppVariables }>()
 // Splitting via `app.use(...)` / `app.route(...)` statements drops the chain
 // generics and AppType collapses to the empty base.
 const app = new Hono<{ Variables: AppVariables }>()
-  .use('*', logger())
+  .use('*', requestId())
+  .use('*', requestLogger)
   .use(
     '*',
     cors({
@@ -32,7 +34,12 @@ const app = new Hono<{ Variables: AppVariables }>()
     })
   )
   .onError((err, c) => {
-    console.error(err)
+    logger.error('unhandled error', {
+      requestId : c.get('requestId'),
+      method    : c.req.method,
+      path      : c.req.path,
+      err       : serializeError(err),
+    })
     if (err instanceof HTTPException) return err.getResponse()
     return c.json({ error: 'Internal server error' }, 500)
   })

@@ -1,6 +1,7 @@
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { createId } from '@paralleldrive/cuid2'
 import { env } from '../env'
+import { logger, serializeError } from './logger'
 
 export const r2 = new S3Client({
   region          : 'auto',
@@ -46,12 +47,12 @@ function keyFromUrl(url: string): string | null {
 export async function deleteCoverByUrl(url: string): Promise<void> {
   const key = keyFromUrl(url)
   if (!key) {
-    console.warn('[r2] skipping delete — URL did not match known prefixes:', url)
+    logger.warn('cover delete skipped — URL did not match known prefixes', { url })
     return
   }
   try {
     await r2.send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET, Key: key }))
   } catch (err) {
-    console.error('[r2] failed to delete cover object', { key, err })
+    logger.error('cover delete failed', { key, err: serializeError(err) })
   }
 }
