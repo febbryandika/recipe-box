@@ -8,6 +8,8 @@ import {
   RecipeNotFoundError,
   type Recipe,
 } from '@/lib/recipe-queries'
+import { uploadCover } from '@/lib/recipe-uploads'
+import { CoverImageInput } from '@/components/CoverImageInput'
 
 type UpdateRecipePayload = InferRequestType<
   (typeof client.api.recipes)[':id']['$put']
@@ -75,6 +77,10 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
   const [steps, setSteps] = useState<string[]>(
     initial.stepsJson.length > 0 ? initial.stepsJson : [''],
   )
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  const [coverError, setCoverError] = useState<string | null>(null)
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
+  const [coverUploadError, setCoverUploadError] = useState<string | null>(null)
 
   const mutation = useMutation({
     mutationFn: async (payload: UpdateRecipePayload) => {
@@ -90,7 +96,22 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
       }
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      if (coverFile) {
+        setIsUploadingCover(true)
+        try {
+          await uploadCover(id, coverFile)
+        } catch (err) {
+          setIsUploadingCover(false)
+          setCoverUploadError(
+            err instanceof Error ? err.message : 'Failed to upload cover image',
+          )
+          queryClient.invalidateQueries({ queryKey: ['recipes'] })
+          queryClient.invalidateQueries({ queryKey: ['recipe', id] })
+          return
+        }
+        setIsUploadingCover(false)
+      }
       queryClient.invalidateQueries({ queryKey: ['recipes'] })
       queryClient.invalidateQueries({ queryKey: ['recipe', id] })
       navigate({ to: '/recipes/$recipeId', params: { recipeId: id } })
@@ -105,6 +126,7 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
     mutation.mutate({
       title: trimmedTitle,
       description: description.trim() || null,
+      coverImageUrl: initial.coverImageUrl,
       cookTimeMinutes: parseIntOrNull(cookTimeMinutes),
       servings: parseIntOrNull(servings),
       ingredients: ingredients.filter(
@@ -145,6 +167,15 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
           placeholder="A short summary"
         />
       </div>
+
+      <CoverImageInput
+        existingUrl={initial.coverImageUrl}
+        file={coverFile}
+        onFileChange={setCoverFile}
+        error={coverError}
+        onError={setCoverError}
+        disabled={mutation.isPending || isUploadingCover}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1">
@@ -324,6 +355,15 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
         </div>
       ) : null}
 
+      {coverUploadError ? (
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          Cover image upload failed: {coverUploadError}
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-end gap-3 pt-2">
         <Link
           to="/recipes/$recipeId"
@@ -334,10 +374,14 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
         </Link>
         <button
           type="submit"
-          disabled={mutation.isPending}
+          disabled={mutation.isPending || isUploadingCover}
           className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
         >
-          {mutation.isPending ? 'Saving…' : 'Save'}
+          {isUploadingCover
+            ? 'Uploading image…'
+            : mutation.isPending
+              ? 'Saving…'
+              : 'Save'}
         </button>
       </div>
     </form>

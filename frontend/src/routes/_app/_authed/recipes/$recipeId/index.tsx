@@ -58,6 +58,16 @@ function RecipePage() {
         </Link>
       </header>
 
+      {recipe.coverImageUrl ? (
+        <div className="aspect-video w-full overflow-hidden rounded-lg bg-muted">
+          <img
+            src={recipe.coverImageUrl}
+            alt={recipe.title}
+            className="h-full w-full object-cover"
+          />
+        </div>
+      ) : null}
+
       <ShareToggle recipe={recipe} />
     </div>
   )
