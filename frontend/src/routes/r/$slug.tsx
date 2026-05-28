@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ErrorState } from '@/components/ui/ErrorState'
 import {
   publicRecipeQueryOptions,
   RecipeNotFoundError,
@@ -37,14 +39,17 @@ function PublicRecipePage() {
         ) : query.isError && query.error instanceof RecipeNotFoundError ? (
           <NotFoundView />
         ) : query.isError ? (
-          <ErrorState
-            message={
-              query.error instanceof Error
-                ? query.error.message
-                : 'Something went wrong'
-            }
-            onRetry={() => query.refetch()}
-          />
+          <div className="mx-auto w-full max-w-2xl">
+            <ErrorState
+              title="Couldn't load recipe"
+              message={
+                query.error instanceof Error
+                  ? query.error.message
+                  : 'Something went wrong'
+              }
+              onRetry={() => query.refetch()}
+            />
+          </div>
         ) : (
           <RecipeView recipe={query.data} />
         )}
@@ -143,35 +148,11 @@ function PublicSkeleton() {
 
 function NotFoundView() {
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-      <p className="text-lg font-medium text-foreground">Recipe not found</p>
-      <p className="text-sm text-muted-foreground">
-        This recipe may have been unpublished or never existed.
-      </p>
-    </div>
-  )
-}
-
-function ErrorState({
-  message,
-  onRetry,
-}: {
-  message: string
-  onRetry: () => void
-}) {
-  return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col items-center justify-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 py-16 text-center">
-      <p className="text-lg font-medium text-foreground">
-        Couldn't load recipe
-      </p>
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-2 inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium transition hover:bg-muted"
-      >
-        Try again
-      </button>
+    <div className="mx-auto w-full max-w-2xl">
+      <EmptyState
+        title="Recipe not found"
+        description="This recipe may have been unpublished or never existed."
+      />
     </div>
   )
 }

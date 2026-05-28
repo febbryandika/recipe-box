@@ -3,6 +3,7 @@ import {
   ALLOWED_COVER_TYPES,
   validateCoverFile,
 } from '@/lib/recipe-uploads'
+import { Button } from '@/components/ui/Button'
 
 type Props = {
   existingUrl: string | null
@@ -85,23 +86,24 @@ export function CoverImageInput({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => inputRef.current?.click()}
           disabled={disabled}
-          className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
         >
           {hasImage ? 'Replace image' : 'Choose image'}
-        </button>
+        </Button>
         {file ? (
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleClear}
             disabled={disabled}
-            className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+            className="text-muted-foreground hover:text-foreground"
           >
             Cancel change
-          </button>
+          </Button>
         ) : null}
         <p className="text-xs text-muted-foreground">
           JPG, PNG, or WEBP · up to 5MB

@@ -3,7 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { client } from '@/lib/client'
 import { recipeInputSchema, type Ingredient } from '@/lib/recipe-schema'
-import { uploadCover } from '@/lib/recipe-uploads'
+import { useCoverUpload } from '@/hooks/useCoverUpload'
+import { useToast } from '@/components/ui/Toast'
+import { Button, buttonClassName } from '@/components/ui/Button'
 import { TagInput } from '@/components/TagInput'
 import { IngredientBuilder } from '@/components/IngredientBuilder'
 import { StepBuilder } from '@/components/StepBuilder'
@@ -62,8 +64,31 @@ function NewRecipePage() {
   const [serverError, setServerError] = useState<string | null>(null)
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverError, setCoverError] = useState<string | null>(null)
-  const [isUploadingCover, setIsUploadingCover] = useState(false)
+  const [createdId, setCreatedId] = useState<string | null>(null)
   const [draftRestored, setDraftRestored] = useState(restoredDraft != null)
+
+  const { toast } = useToast()
+  const coverUpload = useCoverUpload()
+
+  function runCoverUpload(recipeId: string, file: File) {
+    coverUpload.mutate(
+      { recipeId, file },
+      {
+        onSuccess: () => router.navigate({ to: '/' }),
+        onError: (err) => {
+          toast({
+            title: 'Cover image upload failed',
+            description:
+              err instanceof Error ? err.message : 'Please try again.',
+            action: {
+              label: 'Retry',
+              onClick: () => runCoverUpload(recipeId, file),
+            },
+          })
+        },
+      },
+    )
+  }
 
   const draft: RecipeDraft = { title, description, cookTime, servings, tags, ingredients, steps }
   const hasContent =
@@ -114,30 +139,15 @@ function NewRecipePage() {
       }
       return res.json()
     },
-    onSuccess: async (created) => {
+    onSuccess: (created) => {
       clearDraft()
-      if (coverFile) {
-        setIsUploadingCover(true)
-        try {
-          await uploadCover(created.id, coverFile)
-        } catch (err) {
-          setIsUploadingCover(false)
-          setServerError(
-            `Recipe saved, but cover image upload failed: ${
-              err instanceof Error ? err.message : 'unknown error'
-            }. You can retry from the edit page.`,
-          )
-          queryClient.invalidateQueries({ queryKey: ['recipes'] })
-          router.navigate({
-            to: '/recipes/$recipeId/edit',
-            params: { recipeId: created.id },
-          })
-          return
-        }
-        setIsUploadingCover(false)
-      }
+      setCreatedId(created.id)
       queryClient.invalidateQueries({ queryKey: ['recipes'] })
-      router.navigate({ to: '/' })
+      if (coverFile) {
+        runCoverUpload(created.id, coverFile)
+      } else {
+        router.navigate({ to: '/' })
+      }
     },
     onError: (err) => {
       setServerError(err instanceof Error ? err.message : 'Something went wrong')
@@ -146,6 +156,7 @@ function NewRecipePage() {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    if (createdId) return
     setServerError(null)
 
     const trimmedIngredients = ingredients.map((ing) => ({
@@ -324,7 +335,7 @@ function NewRecipePage() {
             onFileChange={setCoverFile}
             error={coverError}
             onError={setCoverError}
-            disabled={mutation.isPending || isUploadingCover}
+            disabled={mutation.isPending || coverUpload.isPending || createdId != null}
           />
         </section>
 
@@ -352,24 +363,51 @@ function NewRecipePage() {
           />
         </section>
 
-        <div className="flex items-center justify-end gap-3 border-t pt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium transition hover:bg-muted"
+        {coverUpload.isError && createdId ? (
+          <div
+            role="alert"
+            className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
           >
+            <p>
+              Your recipe was saved, but the cover image upload failed
+              {coverUpload.error instanceof Error
+                ? `: ${coverUpload.error.message}`
+                : '.'}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => coverFile && runCoverUpload(createdId, coverFile)}
+              >
+                Retry upload
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.navigate({ to: '/' })}
+              >
+                Continue without image
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex items-center justify-end gap-3 border-t pt-6">
+          <Link to="/" className={buttonClassName({ variant: 'outline' })}>
             Cancel
           </Link>
-          <button
+          <Button
             type="submit"
-            disabled={mutation.isPending || isUploadingCover}
-            className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+            loading={mutation.isPending || coverUpload.isPending}
+            disabled={createdId != null}
           >
-            {isUploadingCover
+            {coverUpload.isPending
               ? 'Uploading image…'
               : mutation.isPending
                 ? 'Creating…'
                 : 'Create recipe'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

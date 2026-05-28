@@ -8,7 +8,11 @@ import {
   RecipeNotFoundError,
   type Recipe,
 } from '@/lib/recipe-queries'
-import { uploadCover } from '@/lib/recipe-uploads'
+import { useCoverUpload } from '@/hooks/useCoverUpload'
+import { useToast } from '@/components/ui/Toast'
+import { Button, buttonClassName } from '@/components/ui/Button'
+import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { CoverImageInput } from '@/components/CoverImageInput'
 
 type UpdateRecipePayload = InferRequestType<
@@ -42,6 +46,7 @@ function EditRecipePage() {
         <NotFoundView />
       ) : query.isError ? (
         <ErrorState
+          title="Couldn't load recipe"
           message={
             query.error instanceof Error
               ? query.error.message
@@ -79,8 +84,30 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
   )
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverError, setCoverError] = useState<string | null>(null)
-  const [isUploadingCover, setIsUploadingCover] = useState(false)
-  const [coverUploadError, setCoverUploadError] = useState<string | null>(null)
+
+  const { toast } = useToast()
+  const coverUpload = useCoverUpload()
+
+  function goToRecipe() {
+    navigate({ to: '/recipes/$recipeId', params: { recipeId: id } })
+  }
+
+  function runCoverUpload(file: File) {
+    coverUpload.mutate(
+      { recipeId: id, file },
+      {
+        onSuccess: goToRecipe,
+        onError: (err) => {
+          toast({
+            title: 'Cover image upload failed',
+            description:
+              err instanceof Error ? err.message : 'Please try again.',
+            action: { label: 'Retry', onClick: () => runCoverUpload(file) },
+          })
+        },
+      },
+    )
+  }
 
   const mutation = useMutation({
     mutationFn: async (payload: UpdateRecipePayload) => {
@@ -96,25 +123,14 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
       }
       return res.json()
     },
-    onSuccess: async () => {
-      if (coverFile) {
-        setIsUploadingCover(true)
-        try {
-          await uploadCover(id, coverFile)
-        } catch (err) {
-          setIsUploadingCover(false)
-          setCoverUploadError(
-            err instanceof Error ? err.message : 'Failed to upload cover image',
-          )
-          queryClient.invalidateQueries({ queryKey: ['recipes'] })
-          queryClient.invalidateQueries({ queryKey: ['recipe', id] })
-          return
-        }
-        setIsUploadingCover(false)
-      }
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] })
       queryClient.invalidateQueries({ queryKey: ['recipe', id] })
-      navigate({ to: '/recipes/$recipeId', params: { recipeId: id } })
+      if (coverFile) {
+        runCoverUpload(coverFile)
+      } else {
+        goToRecipe()
+      }
     },
   })
 
@@ -174,7 +190,7 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
         onFileChange={setCoverFile}
         error={coverError}
         onError={setCoverError}
-        disabled={mutation.isPending || isUploadingCover}
+        disabled={mutation.isPending || coverUpload.isPending}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -355,12 +371,29 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
         </div>
       ) : null}
 
-      {coverUploadError ? (
+      {coverUpload.isError ? (
         <div
           role="alert"
-          className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
         >
-          Cover image upload failed: {coverUploadError}
+          <p>
+            Your recipe was saved, but the cover image upload failed
+            {coverUpload.error instanceof Error
+              ? `: ${coverUpload.error.message}`
+              : '.'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => coverFile && runCoverUpload(coverFile)}
+            >
+              Retry upload
+            </Button>
+            <Button variant="outline" size="sm" onClick={goToRecipe}>
+              Continue without image
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -368,21 +401,17 @@ function RecipeEditForm({ id, initial }: { id: string; initial: Recipe }) {
         <Link
           to="/recipes/$recipeId"
           params={{ recipeId: id }}
-          className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          className={buttonClassName({ variant: 'outline' })}
         >
           Cancel
         </Link>
-        <button
-          type="submit"
-          disabled={mutation.isPending || isUploadingCover}
-          className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
-        >
-          {isUploadingCover
+        <Button type="submit" loading={mutation.isPending || coverUpload.isPending}>
+          {coverUpload.isPending
             ? 'Uploading image…'
             : mutation.isPending
               ? 'Saving…'
               : 'Save'}
-        </button>
+        </Button>
       </div>
     </form>
   )
@@ -476,42 +505,15 @@ function EditSkeleton() {
 
 function NotFoundView() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-      <p className="text-lg font-medium text-foreground">Recipe not found</p>
-      <p className="text-sm text-muted-foreground">
-        It may have been deleted or never existed.
-      </p>
-      <Link
-        to="/"
-        className="mt-2 inline-flex items-center rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-      >
-        Back to recipes
-      </Link>
-    </div>
-  )
-}
-
-function ErrorState({
-  message,
-  onRetry,
-}: {
-  message: string
-  onRetry: () => void
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 py-16 text-center">
-      <p className="text-lg font-medium text-foreground">
-        Couldn't load recipe
-      </p>
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-2 inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium transition hover:bg-muted"
-      >
-        Try again
-      </button>
-    </div>
+    <EmptyState
+      title="Recipe not found"
+      description="It may have been deleted or never existed."
+      action={
+        <Link to="/" className={buttonClassName()}>
+          Back to recipes
+        </Link>
+      }
+    />
   )
 }
 

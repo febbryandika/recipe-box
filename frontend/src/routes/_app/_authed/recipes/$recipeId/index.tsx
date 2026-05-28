@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ShareToggle } from '@/components/ShareToggle'
+import { buttonClassName } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ErrorState } from '@/components/ui/ErrorState'
 import {
   recipeQueryOptions,
   RecipeNotFoundError,
@@ -30,14 +33,17 @@ function RecipePage() {
 
   if (query.isError) {
     return (
-      <ErrorState
-        message={
-          query.error instanceof Error
-            ? query.error.message
-            : 'Something went wrong'
-        }
-        onRetry={() => query.refetch()}
-      />
+      <div className="mx-auto w-full max-w-2xl">
+        <ErrorState
+          title="Couldn't load recipe"
+          message={
+            query.error instanceof Error
+              ? query.error.message
+              : 'Something went wrong'
+          }
+          onRetry={() => query.refetch()}
+        />
+      </div>
     )
   }
 
@@ -52,7 +58,7 @@ function RecipePage() {
         <Link
           to="/recipes/$recipeId/edit"
           params={{ recipeId }}
-          className="inline-flex shrink-0 items-center rounded-md border px-3 py-2 text-sm font-medium transition hover:bg-muted"
+          className={buttonClassName({ variant: 'outline', className: 'shrink-0' })}
         >
           Edit
         </Link>
@@ -84,41 +90,16 @@ function DetailSkeleton() {
 
 function NotFoundView() {
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-      <p className="text-lg font-medium text-foreground">Recipe not found</p>
-      <p className="text-sm text-muted-foreground">
-        It may have been deleted or never existed.
-      </p>
-      <Link
-        to="/"
-        className="mt-2 inline-flex items-center rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-      >
-        Back to recipes
-      </Link>
-    </div>
-  )
-}
-
-function ErrorState({
-  message,
-  onRetry,
-}: {
-  message: string
-  onRetry: () => void
-}) {
-  return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col items-center justify-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 py-16 text-center">
-      <p className="text-lg font-medium text-foreground">
-        Couldn't load recipe
-      </p>
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-2 inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium transition hover:bg-muted"
-      >
-        Try again
-      </button>
+    <div className="mx-auto w-full max-w-2xl">
+      <EmptyState
+        title="Recipe not found"
+        description="It may have been deleted or never existed."
+        action={
+          <Link to="/" className={buttonClassName()}>
+            Back to recipes
+          </Link>
+        }
+      />
     </div>
   )
 }
