@@ -6,6 +6,10 @@ const envSchema = z.object({
   BETTER_AUTH_URL : z.string().url(),
   FRONTEND_URL    : z.string().url(),
   PORT            : z.coerce.number().int().positive().default(3000),
+  R2_ENDPOINT          : z.string().url(),
+  R2_ACCESS_KEY_ID     : z.string().min(1),
+  R2_SECRET_ACCESS_KEY : z.string().min(1),
+  R2_BUCKET            : z.string().min(1),
 })
 
 const parsed = envSchema.safeParse(process.env)
