@@ -1,6 +1,7 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { Hono } from 'hono'
 import { env } from '../env'
+import { logger, serializeError } from '../lib/logger'
 import { r2 } from '../lib/r2'
 
 const ALLOWED_EXT = /\.(jpe?g|png|webp)$/i
@@ -40,7 +41,7 @@ export const publicCoversRoute = new Hono()
       if (err?.name === 'NoSuchKey' || err?.$metadata?.httpStatusCode === 404) {
         return c.text('Not found', 404)
       }
-      console.error('[covers] proxy error', { key, err })
+      logger.error('cover proxy error', { key, err: serializeError(err) })
       return c.text('Upstream error', 502)
     }
   })
