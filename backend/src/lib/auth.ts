@@ -18,6 +18,16 @@ export const auth = betterAuth({
     enabled: true,
   },
   trustedOrigins: [env.FRONTEND_URL],
+  rateLimit: {
+    enabled: true,
+    storage: 'memory',
+    window: 60,
+    max: 100,
+    customRules: {
+      '/sign-in/email': { window: 900, max: 5 },
+      '/sign-up/email': { window: 3600, max: 3 },
+    },
+  },
 })
 
 export type Auth = typeof auth
