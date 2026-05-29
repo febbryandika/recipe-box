@@ -1,7 +1,5 @@
 # Recipe Box
 
-> A personal recipe manager — create, organize, and share your recipes.
-
 ![Bun](https://img.shields.io/badge/Bun-1.x-black?logo=bun)
 ![React](https://img.shields.io/badge/React-19-149eca?logo=react)
 ![Hono](https://img.shields.io/badge/Hono-4.6-e36002?logo=hono)
@@ -24,11 +22,17 @@ client.
 
 ## Screenshots
 
-> _Add screenshots to `docs/screenshots/` and they'll render here._
+**Recipe grid** — your recipes with search and tag filtering; a "Public" badge marks shared recipes.
 
-| Recipe grid | Recipe form | Public recipe |
-| --- | --- | --- |
-| ![Recipe grid](docs/screenshots/recipe-grid.png) | ![Recipe form](docs/screenshots/recipe-form.png) | ![Public recipe](docs/screenshots/public-recipe.png) |
+![Recipe grid](assets/screenshots/recipe-grid.png)
+
+**Recipe form** — multi-section editor with ingredient/step builders, tag chips, cover upload, and live draft autosave.
+
+![Recipe form](assets/screenshots/recipe-form.png)
+
+**Public recipe** — read-only shared page at `/r/:slug`, accessible without signing in.
+
+![Public recipe](assets/screenshots/public-recipe.png)
 
 ## Tech Stack
 
@@ -135,8 +139,6 @@ uploads require it.
 | `R2_SECRET_ACCESS_KEY` | optional | R2 secret key |
 | `R2_BUCKET` | optional | R2 bucket name for covers |
 
-> The R2 bucket stays private — covers are served through the API proxy, so there is **no** `R2_PUBLIC_URL`.
-
 ### Frontend (`frontend/.env`)
 
 | Variable | Required | Description |
@@ -157,11 +159,14 @@ cd frontend && bun run test      # schema, uploads, cn, useAutosaveDraft
 
 # Integration tests (backend) — runs against in-process PGlite, no external DB
 cd backend && bun run test:integration
+
+# End-to-end tests (Playwright) — spins up backend + frontend automatically
+bun run test:e2e
 ```
 
 - **Unit** — pure logic: slug generation, Zod recipe/ingredient validation, the autosave hook, upload helpers.
 - **Integration** — `backend/test/` exercises the real Hono app over an in-process [PGlite](https://github.com/electric-sql/pglite) Postgres (R2 and logging mocked via `backend/test/setup.ts`): recipe CRUD, cross-user ownership, public access, and cover upload.
-- **End-to-end** — a Playwright suite (auth → create → publish → public access, plus cover upload and autosave recovery) lives on the `test/playwright-e2e` branch and is not yet merged to `main`.
+- **End-to-end** — a Playwright suite in `e2e/` (configured by `playwright.config.ts`) drives the real app: auth, recipe creation, publish → public access, and draft autosave recovery.
 
 ## Tradeoffs & Future Improvements
 
@@ -170,4 +175,4 @@ cd backend && bun run test:integration
 - **JSONB ingredients/steps.** Storing them as JSONB favors simplicity over queryability; tag-style search inside ingredients would need a different model.
 - **Hard delete, no soft delete.** Deleting a recipe removes it (and its R2 cover) permanently.
 - **Two-step image upload.** A recipe is created first, then its cover is uploaded — a single atomic create-with-image flow would be smoother.
-- **No CI yet.** Lint, typecheck, and tests run locally; wiring them into CI (and merging the E2E suite) is the next hardening step.
+- **No CI yet.** Lint, typecheck, unit, integration, and E2E tests all run locally; wiring them into a CI pipeline is the next hardening step.
